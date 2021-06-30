@@ -16,15 +16,14 @@ def set_id_to_label(label_set):
     return id_to_label
 
 class Dataset():
-    def __init__(self, config, COCO):
+    def __init__(self, image_dir, annotation, config, COCO):
         self.config = config
         self.COCO = COCO
-        self.image_dir = config['image_dir']
+        self.image_dir = image_dir
+        self.annotation_path = annotation
         self.id_to_label = set_id_to_label(config['label_set'])
         self.input_shape = tuple(config['input_shape'])
         self.default_boxes = anchor.generate_default_boxes(config["anchor_param"])
-        self.annotation_path = os.path.join(config['annotation_dir'], 'GDUT_HWD.json')
-
 
     def __len__(self):
         return len(self.ids)
@@ -61,7 +60,7 @@ class Dataset():
         labels = [ self.annoID_to_modelID[coco.loadAnns(ann_id)[0]['category_id']] for ann_id in ann_ids]
         return boxes, labels
 
-    def generate(self, split, coco, ids, num_examples, config):
+    def generate(self, split, coco, ids):
         """
             num_examples : The number of examples to be used.
             It's used if you want to make model overfit a few examples
@@ -79,30 +78,13 @@ class Dataset():
             boxes = np.array(boxes, np.float32); labels = np.array(labels, np.float32);
             gt_confs, gt_locs = box_utils.compute_target(self.default_boxes, boxes, labels)
             image = cv2.resize(image, self.input_shape[:2], interpolation = cv2.INTER_AREA)
+            yield filename, image, gt_confs, gt_locs
 
-            if (config['inference_mode'] == 'mAP'):
-                yield filename, image, labels, boxes
-            else:
-                yield filename, image, gt_confs, gt_locs
-
-    def load_data_generator(self, split, config):
-        """
-            num_examples : The number of examples to be used.
-            It's used if you want to make model overfit a few examples
-        """
-        batch_size = self.config[split]['batch_size']
-        num_examples = self.config[split]['num_examples']
+    def load_data_generator(self, split):
         coco = self.COCO(self.annotation_path)
         ids = coco.getImgIds()
-        if num_examples>0:
-            ids =ids[:num_examples]
         if split == 'train':
             shuffle(ids)
-            if len(ids) > 1000:
-                shuffle_buffer = 1000
-            else:
-                shuffle_buffer = len(ids)
-
         # Sometimes, we use some categories instead of using every category.
         # Then category id of annotation is different from category id of model.
         # The dict "annoID_to_model_ID" converts category id to model id.
@@ -112,12 +94,8 @@ class Dataset():
             self.annoID_to_modelID[cat_id] = model_id+1
 
         # pre-argumenting self.generate function.
-        gen = partial(self.generate, split, coco, ids, num_examples, config)
+        gen = partial(self.generate, split, coco, ids)
         # generate data pipeline with from_generator in TensorFlow dataset APIs
         dataset = tf.data.Dataset.from_generator(gen,
             (tf.string, tf.float32, tf.int32, tf.float32))
-
-        if (split == "train") & (config['inference_mode'] != 'mAP'):
-            dataset = dataset.shuffle(shuffle_buffer)
-
-        return dataset.batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE), len(ids)
+        return dataset, len(ids)
