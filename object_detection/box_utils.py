@@ -36,7 +36,6 @@ def compute_iou(boxes_a, boxes_b):
     overlap_area = compute_area(top_left, bot_right)
     area_a = compute_area(boxes_a[..., :2], boxes_a[..., 2:])
     area_b = compute_area(boxes_b[..., :2], boxes_b[..., 2:])
-
     overlap = overlap_area / (area_a + area_b - overlap_area)
 
     return overlap
@@ -57,19 +56,20 @@ def compute_target(default_boxes, gt_boxes, gt_labels, iou_threshold=0.5):
     # Convert default boxes to format (xmin, ymin, xmax, ymax)
     # in order to compute overlap with gt boxes
     transformed_default_boxes = transform_center_to_corner(default_boxes)
-    iou = compute_iou(transformed_default_boxes, gt_boxes)
+    iou = compute_iou(transformed_default_boxes, gt_boxes) # [num_defaults, num_gt_boxes]
+    
+    best_gt_iou = tf.math.reduce_max(iou, 1) # [num_defaults], 각 anchor 별 가장 큰 iou값
+    best_gt_idx = tf.math.argmax(iou, 1) # [num_defaults], 각 anchor와 가장 잘 겹치는 gt_box의 인덱스
 
-    best_gt_iou = tf.math.reduce_max(iou, 1)
-    best_gt_idx = tf.math.argmax(iou, 1)
-
-    best_default_iou = tf.math.reduce_max(iou, 0)
-    best_default_idx = tf.math.argmax(iou, 0)
+    best_default_iou = tf.math.reduce_max(iou, 0) # [num_gt_boxes], 각 gt_box에게 가장 큰 iou
+    best_default_idx = tf.math.argmax(iou, 0) # [num_gt_boxes], 각 gt_box와 가장 잘 겹치는 anchor 인덱스
 
     best_gt_idx = tf.tensor_scatter_nd_update(
         best_gt_idx,
         tf.expand_dims(best_default_idx, 1),
         tf.range(best_default_idx.shape[0], dtype=tf.int64))
-
+    #각 gt_box와 가장 잘 겹치는 anchor에는 우선적으로 해당 gt_box의 인덱스를 줌.
+    
     # Normal way: use a for loop
     # for gt_idx, default_idx in enumerate(best_default_idx):
     #     best_gt_idx = tf.tensor_scatter_nd_update(
@@ -81,16 +81,20 @@ def compute_target(default_boxes, gt_boxes, gt_labels, iou_threshold=0.5):
         best_gt_iou,
         tf.expand_dims(best_default_idx, 1),
         tf.ones_like(best_default_idx, dtype=tf.float32))
-
+    #각 gt_box와 가장 잘 겹치는 anchor에 대해서는 iou를 1로 지정해줌.
+    
     gt_confs = tf.gather(gt_labels, best_gt_idx)
+    #각 anchor 박스와 가장 겹치는 gt_box의 클래스 레이블이 해당 anchor box의 레이블로 지정.
     gt_confs = tf.where(
         tf.less(best_gt_iou, iou_threshold),
         tf.zeros_like(gt_confs),
         gt_confs)
-
-    gt_boxes = tf.gather(gt_boxes, best_gt_idx)
-    gt_locs = encode(default_boxes, gt_boxes)
-
+    #anchor들 중 iou가 정답박스와 threshold보다 작은 것들은 클래스 아이디를 0(배경)을 부여함.
+    #첫 번째 리턴값.
+    
+    gt_boxes = tf.gather(gt_boxes, best_gt_idx) # [defaults, 4], 각 anchor에 대한 정답 좌표를 가장 겹치는 gt_box의 좌표로 부여. 
+    gt_locs = encode(default_boxes, gt_boxes) # [defaults, 4], 각 anchor에 대한 정답 좌표에서, anchor 기존 좌표에 대한 상대적 변화값으로 변경
+    #두 번째 리턴값.
     return gt_confs, gt_locs
 
 

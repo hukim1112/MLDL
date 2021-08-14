@@ -78,13 +78,10 @@ class SSDLosses(object):
             locs[pos_idx])
         num_pos = tf.reduce_sum(tf.dtypes.cast(pos_idx, tf.float32))
 
-        conf_loss = conf_loss / num_pos
-        loc_loss = loc_loss / num_pos
+        conf_loss = tf.math.truediv(conf_loss, num_pos)
+        loc_loss = tf.math.truediv(loc_loss, num_pos)
         return conf_loss, loc_loss
-
 
 def create_losses(neg_ratio, num_classes):
     criterion = SSDLosses(neg_ratio, num_classes)
-
     return criterion
-

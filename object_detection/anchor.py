@@ -2,7 +2,6 @@ import itertools
 import math
 import tensorflow as tf
 
-
 def generate_default_boxes(param):
     """ Generate default boxes for all feature maps
 
@@ -16,20 +15,7 @@ def generate_default_boxes(param):
         default_boxes: tensor of shape (num_default, 4)
                        with format (cx, cy, w, h)
     """
-    '''
-    param examples
-    "SSD300" : {"ratios": [[2], [2, 3], [2, 3], [2, 3], [2], [2]],
-                           "scales": [0.1, 0.2, 0.375, 0.55, 0.725, 0.9, 1.075],
-                           "fm_sizes": [38, 19, 10, 5, 3, 1],
-                           "image_size": 300},
-    "SSD512" : {"ratios": [[2], [2, 3], [2, 3], [2, 3], [2], [2], [2]],
-                           "scales": [0.07, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05],
-                           "fm_sizes": [64, 32, 16, 8, 6, 4, 1],
-                           "image_size": 512},
 
-
-
-    '''
     default_boxes = []
     scales = param['scales']
     fm_sizes = param['fm_sizes']

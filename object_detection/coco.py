@@ -16,14 +16,13 @@ def set_id_to_label(label_set):
     return id_to_label
 
 class Dataset():
-    def __init__(self, image_dir, annotation, config, COCO):
-        self.config = config
+    def __init__(self, COCO, anchors, image_dir, annotation, label_set, input_shape):
         self.COCO = COCO
         self.image_dir = image_dir
         self.annotation_path = annotation
-        self.id_to_label = set_id_to_label(config['label_set'])
-        self.input_shape = tuple(config['input_shape'])
-        self.default_boxes = anchor.generate_default_boxes(config["anchor_param"])
+        self.id_to_label = set_id_to_label(label_set)
+        self.input_shape = tuple(input_shape)
+        self.default_boxes = anchors
 
     def __len__(self):
         return len(self.ids)
@@ -60,7 +59,7 @@ class Dataset():
         labels = [ self.annoID_to_modelID[coco.loadAnns(ann_id)[0]['category_id']] for ann_id in ann_ids]
         return boxes, labels
 
-    def generate(self, split, coco, ids):
+    def generate(self, coco, ids):
         """
             num_examples : The number of examples to be used.
             It's used if you want to make model overfit a few examples
@@ -94,7 +93,7 @@ class Dataset():
             self.annoID_to_modelID[cat_id] = model_id+1
 
         # pre-argumenting self.generate function.
-        gen = partial(self.generate, split, coco, ids)
+        gen = partial(self.generate, coco, ids)
         # generate data pipeline with from_generator in TensorFlow dataset APIs
         dataset = tf.data.Dataset.from_generator(gen,
             (tf.string, tf.float32, tf.int32, tf.float32))
