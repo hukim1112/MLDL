@@ -33,8 +33,9 @@ class SSDLosses(object):
         num_classes: number of classes
     """
 
-    def __init__(self, neg_ratio, num_classes):
+    def __init__(self, num_classes, num_anchors, neg_ratio):
         self.neg_ratio = neg_ratio
+        self.num_anchors = num_anchors
         self.num_classes = num_classes
 
     def __call__(self, confs, locs, gt_confs, gt_locs):
@@ -65,6 +66,9 @@ class SSDLosses(object):
         cross_entropy = tf.keras.losses.SparseCategoricalCrossentropy(
             from_logits=True, reduction='sum')
         smooth_l1_loss = tf.keras.losses.Huber(reduction='sum')
+        
+        pos_idx = tf.reshape(pos_idx, [-1, self.num_anchors])
+        neg_idx = tf.reshape(neg_idx, [-1, self.num_anchors])
 
         conf_loss = cross_entropy(
             gt_confs[tf.math.logical_or(pos_idx, neg_idx)],
@@ -72,8 +76,6 @@ class SSDLosses(object):
 
         # regression loss only consist of positive examples
         loc_loss = smooth_l1_loss(
-            # tf.boolean_mask(gt_locs, pos_idx),
-            # tf.boolean_mask(locs, pos_idx))
             gt_locs[pos_idx],
             locs[pos_idx])
         num_pos = tf.reduce_sum(tf.dtypes.cast(pos_idx, tf.float32))
@@ -82,6 +84,6 @@ class SSDLosses(object):
         loc_loss = tf.math.truediv(loc_loss, num_pos)
         return conf_loss, loc_loss
 
-def create_losses(neg_ratio, num_classes):
-    criterion = SSDLosses(neg_ratio, num_classes)
+def create_losses(num_classes, num_anchors, neg_ratio):
+    criterion = SSDLosses(num_classes, num_anchors, neg_ratio)
     return criterion
